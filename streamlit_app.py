@@ -1,24 +1,24 @@
 import streamlit as st
-from openai import OpenAI
+from langchain_groq import ChatGroq
 
 # Show title and description.
-st.title("💬 Chatbot")
+st.title("💬 Educational Chatbot")
 st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+    "This chatbot uses the Groq model (LLaMA 3) to generate educational responses. "
+    "You need to provide your Groq API key, which you can get from your Groq account."
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
+# Ask user for their Groq API key via `st.text_input`.
+openai_api_key = st.text_input("Groq API Key", type="password")
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    st.info("Please add your Groq API key to continue.", icon="🗝️")
 else:
-
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    # Create a ChatGroq client.
+    llm = ChatGroq(
+        temperature=0,
+        api_key=openai_api_key,
+        model_name="llama3-70b-8192"
+    )
 
     # Create a session state variable to store the chat messages. This ensures that the
     # messages persist across reruns.
@@ -30,27 +30,38 @@ else:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+    # Create a chat input field to allow the user to enter a message.
+    if prompt := st.chat_input("Ask me an educational question!"):
 
         # Store and display the current prompt.
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+        # Generate a response using the Groq API.
+        input_prompt = f"""
+        You are an educational chatbot designed to provide information and answer questions related to various subjects, such as science, math, literature, history, and more. Your primary goal is to help users learn and grow. If a user asks a question that is not related to education, respond politely with a friendly message, encouraging them to ask about something educational.
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
+        Example Responses:
+
+        Educational Query:
+        User: "Can you explain photosynthesis?"
+        Chatbot: "Sure! Photosynthesis is the process by which green plants convert sunlight into energy. Would you like to know more about how it works?"
+
+        Off-Topic Query:
+        User: "What's your favorite movie?"
+        Chatbot: "That's a great question! However, I'm here to help with educational topics. What would you like to learn about today?"
+
+        User: "{prompt}"
+        Chatbot:
+        """
+
+        # Invoke the Groq model.
+        response = llm.invoke(input_prompt)
+
+        # Display the assistant's response.
         with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            st.markdown(response.content)
+
+        # Append the response to the session state.
+        st.session_state.messages.append({"role": "assistant", "content": response.content})
